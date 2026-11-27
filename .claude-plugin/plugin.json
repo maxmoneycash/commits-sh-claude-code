@@ -1,0 +1,18 @@
+{
+  "name": "commits-sh",
+  "version": "0.1.0",
+  "description": "Your token tape in Claude Code: session and today's tokens, est. cost, prompt-cache countdown, limits, and your commits.sh profile.",
+  "types": "./types/index.d.ts",
+  "network": {
+    "hosts": [
+      "commits.sh"
+    ]
+  },
+  "author": {
+    "name": "commits.sh",
+    "url": "https://commits.sh"
+  },
+  "homepage": "https://commits.sh",
+  "repository": "https://github.com/maxmoneycash/commits-sh-claude-code",
+  "license": "MIT"
+}

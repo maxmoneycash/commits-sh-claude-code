@@ -1,0 +1,5 @@
+{
+  "name": "commits-sh",
+  "owner": { "name": "commits.sh", "url": "https://commits.sh" },
+  "plugins": [{ "name": "commits-sh", "source": "./", "description": "Your token tape in Claude Code: session and today's tokens, est. cost, prompt-cache countdown, limits, and your commits.sh profile." }]
+}
