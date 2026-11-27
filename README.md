@@ -37,7 +37,7 @@ In the Claude desktop app: **+** next to the prompt box → **Plugins** → **Ad
 
 | | |
 | --- | --- |
-| **The band** | One quiet row above the prompt. Session tokens with a tape of the last 16 turns, estimated dollars, today's total, the prompt-cache countdown (amber in its last minute, `COLD` once it lapses), and the 5-hour limit once it passes 50%. Narrow terminals drop figures from the right; the session never drops. |
+| **The band** | One row above the prompt in filled pills: commits.sh, session tokens, estimated dollars, the prompt-cache countdown (orange in its last minute, red once cold), then solid 5-hour and 7-day bars (green, orange past half, red past 80%) and today's total. Narrow terminals give up figures from the right; the session never goes. |
 | **`/commits`** | A pane beside the chat: today's tokens by hour, the session by model with its cache hit rate, your 5-hour and 7-day limits with resets, and your commits.sh totals. |
 | **Status line** | `38.2M tok · $14.10 est` for the session. |
 | **The look** | `/commits theme on` gives the desktop app commits.sh's zinc and green, in light and dark. Off by default. |

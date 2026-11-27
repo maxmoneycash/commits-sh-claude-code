@@ -11,8 +11,8 @@ import type { EngineInterface, Register, ThemeSetArgs } from 'claude-code'
 import type { PulseFigures, SessionFigures, TodayFigures } from '../types'
 import { makeColors } from './make-colors.js'
 import {
-  HANDLE, ago, bandSegments, cacheLeft, clockLabel, compact, dayKey, dollars, emptyShare, fitSegments,
-  hourCells, meter, modelName, readPulse, readShare, resetLabel, staleDayKeys, sumShares, tape, tokensOf, type DayShare,
+  HANDLE, PALETTE, ago, bandPieces, barCells, limitColor, cacheLeft, clockLabel, compact, dayKey, dollars, emptyShare, fitPieces,
+  hourCells, modelName, readPulse, readShare, resetLabel, staleDayKeys, sumShares, tape, tokensOf, type DayShare,
 } from './tape'
 
 const PANE = 'commits'
@@ -235,26 +235,41 @@ export const register: Register = (on) => {
     const s = await read($, session)
     const rest = await read($, others)
     const at = Math.max(await read($, now), s.lastAt ?? 0)
-    const segments = bandSegments({
+    const pieces = bandPieces({
       sessionTokens: s.tokens,
       turnTokens: s.turns,
       sessionUsd: s.usd,
       todayTokens: rest.tokens + ctx.share.tokens,
       cacheMs: cacheLeft(s.lastAt, s.ttlMs, at),
       fiveHourPct: s.fiveHour?.pct ?? null,
+      sevenDayPct: s.sevenDay?.pct ?? null,
       isWorking: e.props.isWorking,
     })
-    if (!segments) return next(e)
+    if (!pieces) return next(e)
     const { Box, Text } = $.ui.resolve(e)
-    const tone = (t?: string) => (t === 'live' ? 'success' : t === 'warn' ? 'warning' : t === 'danger' ? 'error' : undefined)
+    // One Text of runs: pills are cell backgrounds, bars solid blocks.
+    const fitted = fitPieces(pieces, e.props.bodyColumns)
     return (
-      <Box flexDirection="row" gap={3}>
-        {fitSegments(segments, e.props.bodyColumns).map((seg) => (
-          <Text key={seg.key} mono wrap="truncate">
-            <Text dimColor>{seg.label} </Text>
-            <Text color={tone(seg.tone)} dimColor={!seg.tone}>{seg.value}</Text>
-          </Text>
-        ))}
+      <Box flexDirection="row">
+        <Text mono wrap="truncate-end">
+          {fitted.map((piece, i) => {
+            const gap = i === 0 ? '' : piece.kind === 'pill' ? ' ' : '   '
+            if (piece.kind === 'pill') {
+              return <Text key={piece.key}>{gap}<Text bold color={piece.fg} backgroundColor={piece.bg}>{piece.text}</Text></Text>
+            }
+            if (piece.kind === 'bar') {
+              const { filled, empty } = barCells(piece.pct, piece.cells)
+              return (
+                <Text key={piece.key}>
+                  {gap}<Text color={PALETTE.dim}>{piece.label} </Text>
+                  <Text color={piece.color}>{'█'.repeat(filled)}</Text><Text color={PALETTE.track}>{'█'.repeat(empty)}</Text>
+                  <Text bold color={piece.color}> {Math.round(piece.pct)}%</Text>
+                </Text>
+              )
+            }
+            return <Text key={piece.key}>{gap}<Text color={PALETTE.dim}>{piece.label} </Text><Text bold>{piece.value}</Text></Text>
+          })}
+        </Text>
       </Box>
     )
   })
@@ -270,68 +285,70 @@ export const register: Register = (on) => {
     const at = Math.max(await read($, now), s.lastAt ?? 0)
     const today = sumShares([rest, ctx.share])
     const hour = new Date(at || Date.now()).getHours()
-    const cols = Math.max(30, Math.min(72, e.viewport?.columns ?? 60))
-    const rule = <Text dimColor>{'─'.repeat(cols)}</Text>
-    const label = (text: string) => <Text dimColor mono>{text}</Text>
+    const cols = Math.max(32, Math.min(64, e.viewport?.columns ?? 56))
+    const pill = (key: string, text: string, bg: string, fg: string = PALETTE.ink) => <Text key={key} bold color={fg} backgroundColor={bg}>{` ${text} `}</Text>
+    const dim = (text: string) => <Text color={PALETTE.dim}>{text}</Text>
+    const rule = <Text color={PALETTE.track}>{'─'.repeat(cols)}</Text>
+    const bar = (key: string, pct: number, cells: number, color: string) => {
+      const { filled, empty } = barCells(pct, cells)
+      return <Text key={key}><Text color={color}>{'█'.repeat(filled)}</Text><Text color={PALETTE.track}>{'█'.repeat(empty)}</Text></Text>
+    }
     const models = Object.entries(s.models).sort((a, b) => b[1] - a[1]).slice(0, 4)
     const top = models[0]?.[1] ?? 0
     const hitRate = s.input > 0 ? (s.cacheRead / s.input) * 100 : null
-    const limitRow = (name: string, w: SessionFigures['fiveHour']) => w && (
-      <Text mono>
-        <Text dimColor>{name} </Text>
-        <Text color={w.pct >= 80 ? 'error' : w.pct >= 50 ? 'warning' : undefined}>{meter(w.pct / 100, 20)}</Text>
-        <Text> {Math.round(w.pct)}%</Text>
-        <Text dimColor>{resetLabel(w.resetsAt, at) ? `   resets ${resetLabel(w.resetsAt, at)}` : ''}</Text>
+    const cache = cacheLeft(s.lastAt, s.ttlMs, at)
+    const limit = (label: string, w: SessionFigures['fiveHour']) => w && (
+      <Text key={label} mono>
+        {dim(`${label} `)}{bar(`${label}-bar`, w.pct, 24, limitColor(w.pct))}
+        <Text bold color={limitColor(w.pct)}>{` ${Math.round(w.pct)}%`}</Text>
+        {resetLabel(w.resetsAt, at) ? dim(`  ${resetLabel(w.resetsAt, at)}`) : null}
       </Text>
     )
-    const cache = cacheLeft(s.lastAt, s.ttlMs, at)
 
     return (
-      <Box flexDirection="column" gap={0}>
-        <Box flexDirection="row" justifyContent="space-between">
-          <Text mono bold>COMMITS.SH</Text>
-          {who ? <Text dimColor mono>@{who}</Text> : null}
-        </Box>
-        {rule}
+      <Box flexDirection="column">
         <Text mono>
-          {label('TODAY · CLAUDE CODE  ')}
-          <Text bold>{compact(today.tokens)}</Text>
-          <Text dimColor> tok   {dollars(today.usd)} est   {today.turns} turns</Text>
+          {pill('brand', '◆ commits.sh', PALETTE.mint, PALETTE.navy)}
+          {who ? <Text> {pill('who', `@${who}`, PALETTE.blue, PALETTE.white)}</Text> : null}
+        </Text>
+        <Text> </Text>
+        <Text mono>
+          {dim('TODAY  ')}{pill('today', `${compact(today.tokens)} tok`, PALETTE.blue, PALETTE.white)}{' '}
+          {pill('today-usd', dollars(today.usd), PALETTE.yellow)}{dim(`  ${today.turns} turns`)}
         </Text>
         <Text mono>
           {hourCells(today.hours, hour).map((cell, i) => (
-            <Text key={`h${i}`} color={cell.isSpent ? 'success' : undefined} dimColor={!cell.isSpent}>{cell.char}</Text>
+            <Text key={`h${i}`} color={cell.isSpent ? (i === hour ? PALETTE.green : '#2fbf5f') : PALETTE.track}>{cell.isSpent ? cell.char : cell.char === '·' ? '▁' : ' '}</Text>
           ))}
         </Text>
-        <Text dimColor mono>{'00'.padEnd(Math.min(24, cols) - 2)}23</Text>
+        <Text mono>{dim('00'.padEnd(22))}{dim('23')}</Text>
         {rule}
         <Text mono>
-          {label('SESSION  ')}
-          <Text bold>{compact(s.tokens)}</Text>
-          <Text dimColor> tok   {s.usd !== null ? `${dollars(s.usd)} est` : ''}{hitRate !== null ? `   cache hits ${hitRate.toFixed(1)}%` : ''}</Text>
+          {dim('SESSION  ')}{pill('session', `${compact(s.tokens)} tok`, PALETTE.blue, PALETTE.white)}
+          {s.usd !== null ? <Text> {pill('session-usd', dollars(s.usd), PALETTE.yellow)}</Text> : null}
+          {cache !== null ? <Text> {pill('cache', cache > 0 ? `⏱ ${clockLabel(cache)}` : '⏱ cold', cache <= 0 ? PALETTE.red : cache < 60_000 ? PALETTE.orange : PALETTE.teal)}</Text> : null}
         </Text>
-        {s.turns.length > 1 ? <Text mono color="success">{tape(s.turns.slice(-Math.min(cols, 60)))}</Text> : null}
         {models.map(([name, tokens]) => (
           <Text key={name} mono>
-            <Text dimColor>{name.padEnd(14).slice(0, 14)} {compact(tokens).padStart(6)}  </Text>
-            <Text>{meter(top > 0 ? tokens / top : 0, Math.max(8, cols - 24))}</Text>
+            {dim(name.padEnd(12).slice(0, 12))}<Text bold>{compact(tokens).padStart(6)}</Text>{'  '}
+            {bar(`${name}-bar`, top > 0 ? (tokens / top) * 100 : 0, Math.max(10, cols - 22), PALETTE.blue)}
           </Text>
         ))}
-        {cache !== null ? <Text dimColor mono>prompt cache {cache > 0 ? `warm ${clockLabel(cache)}` : 'cold'}</Text> : null}
+        {hitRate !== null ? <Text mono>{dim('cache hits  ')}<Text bold color={PALETTE.teal}>{`${hitRate.toFixed(1)}%`}</Text></Text> : null}
         {s.fiveHour || s.sevenDay ? rule : null}
-        {limitRow('5H', s.fiveHour)}
-        {limitRow('7D', s.sevenDay)}
+        {limit('5H', s.fiveHour)}
+        {limit('7D', s.sevenDay)}
         {rule}
         {who && p ? (
           <Text mono>
-            {label('ALL AGENTS  ')}
-            <Text bold>{compact(p.total)}</Text>
-            <Text dimColor> tok{p.rate !== null && p.rate > 0 ? `   ${compact(p.rate)}/min` : ''}{p.ageSec !== null ? `   ${ago(p.ageSec + Math.max(0, (at - p.at) / 1000))}` : ''}</Text>
+            {dim('ALL AGENTS  ')}{pill('all', `${compact(p.total)} tok`, PALETTE.mint, PALETTE.navy)}
+            {p.rate !== null && p.rate > 0 ? dim(`  ${compact(p.rate)}/min`) : null}
+            {p.ageSec !== null ? dim(`  ${ago(p.ageSec + Math.max(0, (at - p.at) / 1000))}`) : null}
           </Text>
         ) : null}
         {who
           ? <Link href={`https://commits.sh/${who}`}>commits.sh/{who}</Link>
-          : <Text dimColor mono>commits.sh · /commits connect &lt;handle&gt;</Text>}
+          : <Text mono>{dim('connect: ')}<Text bold>/commits connect &lt;handle&gt;</Text></Text>}
       </Box>
     )
   })

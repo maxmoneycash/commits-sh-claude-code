@@ -68,8 +68,20 @@ export function clockLabel(ms: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-/** A piece of the band: what it says and how it paints. Lower `drop` goes first. */
-export type Segment = { key: string; label: string; value: string; tone?: 'live' | 'warn' | 'danger'; drop: number }
+// ---- the band: powerline pills, solid bars ------------------------------------
+// Max's pick (Nov 26, direction B): filled pills in his statusline's palette,
+// then solid 5H / 7D bars, then today. Every color is a raw hex the terminal
+// draws in truecolor; the desktop app paints the same spans.
+
+export const PALETTE = {
+  mint: '#7df9aa', navy: '#1c3a5e', blue: '#3b76f0', white: '#f4f4f5', yellow: '#fcf392', teal: '#8dfbd2',
+  ink: '#09090b', green: '#50fa7b', orange: '#ffa500', red: '#ff4646', track: '#2e2e33', dim: '#8b8b94',
+} as const
+
+export type Pill = { kind: 'pill'; key: string; text: string; fg: string; bg: string; drop: number }
+export type BarPiece = { kind: 'bar'; key: string; label: string; pct: number; color: string; cells: number; drop: number }
+export type Plain = { kind: 'plain'; key: string; label: string; value: string; drop: number }
+export type Piece = Pill | BarPiece | Plain
 
 export type BandFigures = {
   sessionTokens: number
@@ -78,43 +90,68 @@ export type BandFigures = {
   todayTokens: number | null
   cacheMs: number | null
   fiveHourPct: number | null
+  sevenDayPct: number | null
   isWorking: boolean
 }
 
 export const TAPE_TURNS = 16
-const GAP = 3
+const GAP = 1
+const BAR_GAP = 3
+export const BAR_CELLS = 16
 
-/** The band's segments, most important first; null before the first turn. */
-export function bandSegments(f: BandFigures): Segment[] | null {
+/** A limit's color: green, orange past half, red past 80%. */
+export function limitColor(pct: number): string {
+  return pct >= 80 ? PALETTE.red : pct >= 50 ? PALETTE.orange : PALETTE.green
+}
+
+/** The band's pieces in reading order; null before the first turn. `drop`
+ * is the order narrow columns give them up (lowest first); the brand and
+ * the session never go. */
+export function bandPieces(f: BandFigures): Piece[] | null {
   if (f.sessionTokens <= 0 && f.turnTokens.length === 0) return null
-  const turns = f.turnTokens.slice(-TAPE_TURNS)
-  const session = [compact(f.sessionTokens), turns.length > 1 ? tape(turns) : '', f.sessionUsd !== null ? `${dollars(f.sessionUsd)} est` : '']
-    .filter(Boolean).join(' ')
-  const out: Segment[] = [{ key: 'session', label: 'SESSION', value: session, tone: f.isWorking ? 'live' : undefined, drop: 99 }]
-  if (f.todayTokens !== null && f.todayTokens > f.sessionTokens) out.push({ key: 'today', label: 'TODAY', value: compact(f.todayTokens), drop: 1 })
+  const out: Piece[] = [
+    { kind: 'pill', key: 'brand', text: ' ◆ commits.sh ', fg: PALETTE.navy, bg: PALETTE.mint, drop: 99 },
+    { kind: 'pill', key: 'session', text: ` ${compact(f.sessionTokens)} tok `, fg: PALETTE.white, bg: PALETTE.blue, drop: 98 },
+  ]
+  if (f.sessionUsd !== null) out.push({ kind: 'pill', key: 'usd', text: ` ${dollars(f.sessionUsd)} `, fg: PALETTE.ink, bg: PALETTE.yellow, drop: 5 })
   if (f.cacheMs !== null && !f.isWorking) {
-    out.push(f.cacheMs <= 0
-      ? { key: 'cache', label: 'CACHE', value: 'COLD', tone: 'warn', drop: 2 }
-      : { key: 'cache', label: 'CACHE', value: clockLabel(f.cacheMs), tone: f.cacheMs < 60_000 ? 'warn' : undefined, drop: 2 })
+    const cold = f.cacheMs <= 0
+    const late = !cold && f.cacheMs < 60_000
+    out.push({
+      kind: 'pill', key: 'cache', text: cold ? ' ⏱ cold ' : ` ⏱ ${clockLabel(f.cacheMs)} `,
+      fg: PALETTE.ink, bg: cold ? PALETTE.red : late ? PALETTE.orange : PALETTE.teal, drop: 4,
+    })
   }
-  if (f.fiveHourPct !== null && f.fiveHourPct >= 50) {
-    out.push({ key: 'five', label: '5H', value: `${Math.round(f.fiveHourPct)}%`, tone: f.fiveHourPct >= 80 ? 'danger' : 'warn', drop: 0 })
-  }
+  if (f.fiveHourPct !== null) out.push({ kind: 'bar', key: 'five', label: '5H', pct: f.fiveHourPct, color: limitColor(f.fiveHourPct), cells: BAR_CELLS, drop: 3 })
+  if (f.sevenDayPct !== null) out.push({ kind: 'bar', key: 'seven', label: '7D', pct: f.sevenDayPct, color: limitColor(f.sevenDayPct), cells: BAR_CELLS, drop: 2 })
+  if (f.todayTokens !== null && f.todayTokens > f.sessionTokens) out.push({ kind: 'plain', key: 'today', label: 'today', value: compact(f.todayTokens), drop: 1 })
   return out
 }
 
-const width = (s: Segment) => s.label.length + 1 + [...s.value].length
+/** Cells a piece takes, with the gap before it. */
+export function pieceWidth(p: Piece, isFirst: boolean): number {
+  const body = p.kind === 'pill' ? [...p.text].length
+    : p.kind === 'bar' ? p.label.length + 1 + p.cells + 1 + `${Math.round(p.pct)}%`.length
+    : p.label.length + 1 + [...p.value].length
+  return body + (isFirst ? 0 : p.kind === 'pill' ? GAP : BAR_GAP)
+}
 
-/** The segments that fit `columns`, dropping the least important first. */
-export function fitSegments(segments: readonly Segment[], columns: number): Segment[] {
-  const kept = [...segments]
-  const total = () => kept.reduce((sum, s) => sum + width(s), 0) + GAP * Math.max(0, kept.length - 1)
-  while (kept.length > 1 && total() > columns) {
+/** The pieces that fit `columns`, giving up the lowest `drop` first. */
+export function fitPieces(pieces: readonly Piece[], columns: number): Piece[] {
+  const kept = [...pieces]
+  const total = () => kept.reduce((sum, p, i) => sum + pieceWidth(p, i === 0), 0)
+  while (kept.length > 2 && total() > columns) {
     let at = 0
     for (let i = 1; i < kept.length; i++) if (kept[i]!.drop < kept[at]!.drop) at = i
     kept.splice(at, 1)
   }
   return kept
+}
+
+/** A solid bar: filled cells and track cells. */
+export function barCells(pct: number, cells: number): { filled: number; empty: number } {
+  const filled = Math.max(0, Math.min(cells, Math.round((Math.max(0, pct) / 100) * cells)))
+  return { filled, empty: cells - filled }
 }
 
 // ---- the day ledger ----------------------------------------------------------

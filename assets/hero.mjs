@@ -51,15 +51,22 @@ y += 32; dot(y, C.green); runs(TX, y, [["Bash", C.fg, true], ["(npm run test:dis
 y += 22; tree(y, "# pass 1009");
 y += 32; dot(y, C.claude); runs(TX, y, [["Every page loads now: 2,992 of 2,992.", C.fg2]]);
 
-// The band: one row above the prompt
+// The band: direction B, powerline pills and solid bars.
+const K = { mint: "#7df9aa", navy: "#1c3a5e", blue: "#3b76f0", white: "#f4f4f5", yellow: "#fcf392", teal: "#8dfbd2", ink: "#09090b", green: "#50fa7b", orange: "#ffa500", red: "#ff4646", track: "#2e2e33", dim: "#8b8b94" };
+const pill = (x, y, s, bg, fg) => { const w = [...s].length * CH; out.push(`<rect x="${x}" y="${y - 15}" width="${w}" height="21" rx="10.5" fill="${bg}"/>`); runs(x, y, [[s, fg, true]]); return x + w; };
+const sbar = (x, y, pct, cells, color) => { const w = cells * CH, f = Math.round(pct / 100 * cells) * CH; rect(x, y - 13, w, 16, K.track, 'rx="2"'); rect(x, y - 13, f, 16, color, 'rx="2"'); return x + w; };
 const BY = WY + WH - 132;
-const band = [
-  ["SESSION ", C.faint], ["38.2M ", C.fg, true], ["▁▂▂▅▃▇▅▂▃▆█▅ ", C.green], ["$14.10 est", C.muted],
-  ["   TODAY ", C.faint], ["412M", C.fg2],
-  ["   CACHE ", C.faint], ["3:41", C.fg2],
-  ["   5H ", C.faint], ["62%", C.amber],
-];
-runs(LX, BY, band);
+{
+  let x = LX;
+  x = pill(x, BY, " ◆ commits.sh ", K.mint, K.navy) + CH;
+  x = pill(x, BY, " 38.2M tok ", K.blue, K.white) + CH;
+  x = pill(x, BY, " $14.10 ", K.yellow, K.ink) + CH;
+  x = pill(x, BY, " ⏱ 3:41 ", K.teal, K.ink) + 3 * CH;
+  runs(x, BY, [["5H ", K.dim]]); x += 3 * CH;
+  x = sbar(x, BY, 62, 10, K.orange); runs(x, BY, [[" 62%", K.orange, true]]); x += 7 * CH;
+  runs(x, BY, [["7D ", K.dim]]); x += 3 * CH;
+  x = sbar(x, BY, 41, 10, K.green); runs(x, BY, [[" 41%", K.green, true]]);
+}
 
 // Prompt box
 const PBY = BY + 16;
@@ -70,56 +77,43 @@ rect(LX + 6 + 2 * CH, PBY + 14, CH, 18, C.fg2);
 runs(LX, PBY + 72, [["38.2M tok · $14.10 est", C.faint]]);
 text(PX - 28, PBY + 72, "? for shortcuts", C.faint, 'text-anchor="end"');
 
-// The pane (right)
+// The pane (right): the same vocabulary.
 const QX = PX + 24, QW = WX + WW - QX - 24;
-let q = WY + 74;
-runs(QX, q, [["COMMITS.SH", C.fg, true]]);
-text(QX + QW, q, "@maxmoneycash", C.muted, 'text-anchor="end"');
-q += 16; rect(QX, q, QW, 1, C.rule);
-
-q += 36;
-runs(QX, q, [["TODAY ", C.faint], ["412.6M", C.fg, true], [" tok   $187 est   61 turns", C.muted]]);
-// hourly bars
-q += 16;
-const hours = [0, 0, 0, 0, 0, 0, 0, 0.08, 0.22, 0.41, 0.66, 0.52, 0.30, 0.45, 0.78, 1, 0.83, 0.57, 0.36, 0.48, 0.71, 0.0, 0, 0];
-const nowHour = 20, bw = QW / 24, maxH = 74;
+let q = WY + 76;
+{ const x = pill(QX, q, " ◆ commits.sh ", K.mint, K.navy) + CH; pill(x, q, " @maxmoneycash ", K.blue, K.white); }
+q += 44;
+{ runs(QX, q, [["TODAY  ", K.dim]]); let x = QX + 7 * CH; x = pill(x, q, " 412.6M tok ", K.blue, K.white) + CH; x = pill(x, q, " $187 ", K.yellow, K.ink); runs(x + CH, q, [["61 turns", K.dim]]); }
+q += 14;
+const hours = [0, 0, 0, 0, 0, 0, 0, 0.08, 0.22, 0.41, 0.66, 0.52, 0.30, 0.45, 0.78, 1, 0.83, 0.57, 0.36, 0.48, 0.71, 0, 0, 0];
+const nowHour = 20, bw = QW / 24, maxH = 70;
 hours.forEach((v, i) => {
   if (i > nowHour) return;
-  if (v <= 0) { rect(QX + i * bw + bw / 2 - 1, q + maxH - 2, 2, 2, C.faint); return; }
-  rect(QX + i * bw + 1.5, q + maxH - v * maxH, bw - 3, v * maxH, i === nowHour ? C.green : C.greenDim, 'rx="1.5"');
+  const h = Math.max(3, v * maxH);
+  rect(QX + i * bw + 1.5, q + maxH - h, bw - 3, h, v <= 0 ? K.track : i === nowHour ? K.green : "#2fbf5f", 'rx="2"');
 });
-q += maxH + 18;
-text(QX, q, "00", C.faint, 'font-size="11"');
-text(QX + QW, q, "23", C.faint, 'font-size="11" text-anchor="end"');
+q += maxH + 16;
+text(QX, q, "00", K.dim, 'font-size="11"'); text(QX + QW, q, "23", K.dim, 'font-size="11" text-anchor="end"');
 q += 14; rect(QX, q, QW, 1, C.rule);
-
-q += 36;
-runs(QX, q, [["SESSION ", C.faint], ["38.2M", C.fg, true], [" tok   cache hits 97.9%", C.muted]]);
-const models = [["opus-5-5", 36.9, "36.9M"], ["haiku-5-5", 1.3, "1.3M"]];
-for (const [name, v, label] of models) {
-  q += 30;
-  runs(QX, q, [[name.padEnd(11), C.muted], [label.padStart(6), C.fg2]]);
-  const bx = QX + 18 * CH, bwid = QW - 18 * CH;
-  rect(bx, q - 10, bwid, 8, C.rule, 'rx="2"');
-  rect(bx, q - 10, Math.max(3, bwid * (v / 36.9)), 8, C.green, 'rx="2"');
+q += 32;
+{ runs(QX, q, [["SESSION  ", K.dim]]); let x = QX + 9 * CH; x = pill(x, q, " 38.2M tok ", K.blue, K.white) + CH; x = pill(x, q, " $14.10 ", K.yellow, K.ink) + CH; pill(x, q, " ⏱ 3:41 ", K.teal, K.ink); }
+for (const [name, v, label] of [["opus-5-5", 36.9, "36.9M"], ["haiku-5-5", 1.3, "1.3M"]]) {
+  q += 28;
+  runs(QX, q, [[name.padEnd(11), K.dim], [label.padStart(6), C.fg, true]]);
+  sbar(QX + 19 * CH, q, v / 36.9 * 100, Math.floor((QW - 19 * CH) / CH), K.blue);
 }
-q += 22; runs(QX, q, [["prompt cache warm 3:41", C.faint]]);
+q += 26; runs(QX, q, [["cache hits  ", K.dim], ["97.9%", K.teal, true]]);
 q += 16; rect(QX, q, QW, 1, C.rule);
-
-q += 36;
-for (const [label, pct, reset, color] of [["5H", 62, "2h 14m", C.amber], ["7D", 41, "Fri 9:00", C.green]]) {
-  runs(QX, q, [[label, C.faint]]);
-  const bx = QX + 4 * CH, bwid = QW - 4 * CH - 16 * CH;
-  rect(bx, q - 10, bwid, 8, C.rule, 'rx="2"');
-  rect(bx, q - 10, bwid * pct / 100, 8, color, 'rx="2"');
-  runs(bx + bwid + 10, q, [[`${pct}%`.padStart(3), C.fg2], [`  ${reset}`, C.faint]]);
-  q += 30;
+q += 32;
+for (const [label, pct, reset, color] of [["5H", 62, "2h 14m", K.orange], ["7D", 41, "Fri 9:00", K.green]]) {
+  runs(QX, q, [[label + " ", K.dim]]);
+  const x = sbar(QX + 3 * CH, q, pct, 24, color);
+  runs(x, q, [[` ${pct}%`, color, true], [`  ${reset}`, K.dim]]);
+  q += 28;
 }
 q -= 12; rect(QX, q, QW, 1, C.rule);
-q += 36;
-runs(QX, q, [["ALL AGENTS ", C.faint], ["211.8B", C.fg, true], [" tok   4.4M/min", C.muted]]);
-q += 24;
-runs(QX, q, [["commits.sh/maxmoneycash", C.green]]);
+q += 32;
+{ runs(QX, q, [["ALL AGENTS  ", K.dim]]); const x = pill(QX + 12 * CH, q, " 211.8B tok ", K.mint, K.navy); runs(x + CH, q, [["4.4M/min", K.dim]]); }
+q += 28; runs(QX, q, [["commits.sh/maxmoneycash", K.green]]);
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${FONT}" font-size="14">
 ${out.join("\n")}

@@ -57,18 +57,22 @@ test('the band shows the session tape, est. dollars and the cache countdown, on 
     const ui = await $.ui.mount({ ...BAND, surface })
     const found = await ui.findAll({ type: 'Text' })
     const all = found.map((t) => t.text).join(' ')
-    expect(all).toContain('SESSION 6M')
-    expect(all).toContain('$14.10 est')
-    expect(all).toMatch(/CACHE \d:\d\d/)
-    expect(all).toContain('5H 62%')
+    expect(all).toContain('◆ commits.sh')
+    expect(all).toContain('6M tok')
+    expect(all).toContain('$14.10')
+    expect(all).toMatch(/⏱ \d:\d\d/)
+    expect(all).toMatch(/5H █+ 62%/)
     await ui.unmount()
   }
 
-  // A narrow column drops the limit first, then the cache; never the session.
-  const narrow = await $.ui.mount({ ...BAND, surface: 'terminal', props: { ...BAND.props, bodyColumns: 34 } })
+  // A narrow column gives up today, 7D, 5H, the cache and the dollars, in that
+  // order; the brand and the session stay.
+  const narrow = await $.ui.mount({ ...BAND, surface: 'terminal', props: { ...BAND.props, bodyColumns: 30 } })
   const thin = (await narrow.findAll({ type: 'Text' })).map((t) => t.text).join(' ')
-  expect(thin).toContain('SESSION 6M')
+  expect(thin).toContain('◆ commits.sh')
+  expect(thin).toContain('6M tok')
   expect(thin).not.toContain('5H')
+  expect(thin).not.toContain('⏱')
   await narrow.unmount()
 })
 
@@ -113,10 +117,12 @@ test('the pane draws today, the session, limits and the connect hint, on every s
     const ui = await $.ui.mount({ plugin: 'commits-sh', surface, component: 'Pane', requestId: 'commits', props: { title: 'commits.sh', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 30 }, view: {} } })
     const lines = (await ui.findAll({ type: 'Text' })).map((t) => t.text)
     const all = lines.join('\n')
-    expect(all).toContain('TODAY · CLAUDE CODE')
+    expect(all).toContain('TODAY')
+    expect(all).toContain('◆ commits.sh')
     expect(all).toContain('SESSION')
     expect(all).toContain('5H')
     expect(all).toContain('/commits connect')
+    expect(all).toMatch(/5H █+ 23%/)
     await ui.unmount()
   }
 })
