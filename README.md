@@ -50,6 +50,7 @@ In the Claude desktop app: **+** next to the prompt box → **Plugins** → **Ad
 /commits disconnect
 /commits theme on | off
 /commits band on | off
+/commits caps on | off        rounded pill ends (needs a Nerd Font)
 ```
 
 ## Data and privacy

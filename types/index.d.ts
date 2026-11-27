@@ -33,6 +33,8 @@ declare module 'claude-code' {
       pulse: Shaped<PulseFigures | null>
       handle: string | null
       isBandOn: boolean
+      /** Rounded pill caps (Nerd Font powerline glyphs), opt-in. */
+      hasCaps: boolean
       /** Redrawn by the cache clock. */
       now: number
     }

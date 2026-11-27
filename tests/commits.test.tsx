@@ -126,3 +126,18 @@ test('the pane draws today, the session, limits and the connect hint, on every s
     await ui.unmount()
   }
 })
+
+test('/commits caps on draws rounded powerline caps around each pill in the terminal', async ($, on) => {
+  engine(on)
+  on('turn.step', async function* (_, e) {
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: usage(100_000) }
+  })
+  on('turn.complete', () => ({ text: '' }))
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await oneTurn($, on, 't1', 0)
+  expect((await $.command.run({ command: 'commits', args: 'caps on' } as any)).text).toContain('Nerd Font')
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const all = (await ui.findAll({ type: 'Text' })).map((t) => t.text).join('')
+  expect(all).toContain(' ◆ commits.sh ')
+  await ui.unmount()
+})

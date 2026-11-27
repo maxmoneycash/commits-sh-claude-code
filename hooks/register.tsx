@@ -28,6 +28,10 @@ const others = atom({ plugin: 'commits-sh', key: 'others' } as const, emptyShare
 const pulse = atom({ plugin: 'commits-sh', key: 'pulse' } as const, null as PulseFigures | null, { shape: 'pulse-1' })
 const handle = atom({ plugin: 'commits-sh', key: 'handle' } as const, null as string | null)
 const isBandOn = atom({ plugin: 'commits-sh', key: 'isBandOn' } as const, true)
+const hasCaps = atom({ plugin: 'commits-sh', key: 'hasCaps' } as const, false)
+// Powerline's rounded caps (Nerd Fonts): drawn in the pill's color on the terminal's own background.
+const CAP_LEFT = '\ue0b6'
+const CAP_RIGHT = '\ue0b4'
 const now = atom({ plugin: 'commits-sh', key: 'now' } as const, 0)
 
 // The commits.sh look: zinc surfaces, the site's green as the signal.
@@ -88,11 +92,13 @@ async function maybePulse($: EngineInterface): Promise<void> {
 export const register: Register = (on) => {
   on('session.start', async ($, e, next) => {
     ctx.sessionId = (await $.session.id()).slice(0, 12)
-    await $.command.register({ name: 'commits', description: 'Your commits.sh token tape', argumentHint: '[connect <handle> | disconnect | theme on|off | band on|off]' })
+    await $.command.register({ name: 'commits', description: 'Your commits.sh token tape', argumentHint: '[connect <handle> | disconnect | theme on|off | band on|off | caps on|off]' })
     const stored = await $.store.get('handle')
     await update($, handle, () => (typeof stored === 'string' && HANDLE.test(stored) ? stored : null))
     const band = await $.store.get('band')
     await update($, isBandOn, () => band !== 'off')
+    const caps = await $.store.get('caps')
+    await update($, hasCaps, () => caps === 'on')
     const today = dayKey(await $.clock.now())
     for (const key of staleDayKeys(await $.store.keys(), today)) await $.store.delete(key)
     // A reload keeps the session's figures but not this module's variables.
@@ -217,6 +223,12 @@ export const register: Register = (on) => {
         const set = await $.theme.set(LOOK)
         return { text: set.isDrawn ? 'commits.sh look on.' : `Saved. ${set.reason ?? 'This surface draws no themes'}; the desktop app will show it.` }
       }
+      case 'caps': {
+        const isOn = value !== 'off'
+        await $.store.set('caps', isOn ? 'on' : 'off')
+        await update($, hasCaps, () => isOn)
+        return { text: isOn ? 'Rounded pills on (needs a Nerd Font; /commits caps off if you see boxes).' : 'Square pills.' }
+      }
       case 'band': {
         const isOn = value !== 'off'
         await $.store.set('band', isOn ? 'on' : 'off')
@@ -224,7 +236,7 @@ export const register: Register = (on) => {
         return { text: `Band ${isOn ? 'on' : 'off'}.` }
       }
       default:
-        return { text: 'Usage: /commits [connect <handle> | disconnect | theme on|off | band on|off]' }
+        return { text: 'Usage: /commits [connect <handle> | disconnect | theme on|off | band on|off | caps on|off]' }
     }
   })
 
@@ -248,14 +260,22 @@ export const register: Register = (on) => {
     if (!pieces) return next(e)
     const { Box, Text } = $.ui.resolve(e)
     // One Text of runs: pills are cell backgrounds, bars solid blocks.
-    const fitted = fitPieces(pieces, e.props.bodyColumns)
+    const caps = e.surface === 'terminal' && (await read($, hasCaps))
+    // Caps add two cells a pill; the fit counts them.
+    const fitted = fitPieces(pieces, e.props.bodyColumns - (caps ? 2 * pieces.filter((p) => p.kind === 'pill').length : 0))
     return (
       <Box flexDirection="row">
         <Text mono wrap="truncate-end">
           {fitted.map((piece, i) => {
             const gap = i === 0 ? '' : piece.kind === 'pill' ? ' ' : '   '
             if (piece.kind === 'pill') {
-              return <Text key={piece.key}>{gap}<Text bold color={piece.fg} backgroundColor={piece.bg}>{piece.text}</Text></Text>
+              return (
+                <Text key={piece.key}>
+                  {gap}{caps ? <Text color={piece.bg}>{CAP_LEFT}</Text> : null}
+                  <Text bold color={piece.fg} backgroundColor={piece.bg}>{piece.text}</Text>
+                  {caps ? <Text color={piece.bg}>{CAP_RIGHT}</Text> : null}
+                </Text>
+              )
             }
             if (piece.kind === 'bar') {
               const { filled, empty } = barCells(piece.pct, piece.cells)

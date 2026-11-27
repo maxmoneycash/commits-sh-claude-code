@@ -53,7 +53,7 @@ y += 32; dot(y, C.claude); runs(TX, y, [["Every page loads now: 2,992 of 2,992."
 
 // The band: direction B, powerline pills and solid bars.
 const K = { mint: "#7df9aa", navy: "#1c3a5e", blue: "#3b76f0", white: "#f4f4f5", yellow: "#fcf392", teal: "#8dfbd2", ink: "#09090b", green: "#50fa7b", orange: "#ffa500", red: "#ff4646", track: "#2e2e33", dim: "#8b8b94" };
-const pill = (x, y, s, bg, fg) => { const w = [...s].length * CH; out.push(`<rect x="${x}" y="${y - 15}" width="${w}" height="21" rx="10.5" fill="${bg}"/>`); runs(x, y, [[s, fg, true]]); return x + w; };
+const pill = (x, y, s, bg, fg) => { const w = [...s].length * CH; out.push(`<rect x="${x}" y="${y - 15}" width="${w}" height="21" rx="2" fill="${bg}"/>`); runs(x, y, [[s, fg, true]]); return x + w; };
 const sbar = (x, y, pct, cells, color) => { const w = cells * CH, f = Math.round(pct / 100 * cells) * CH; rect(x, y - 13, w, 16, K.track, 'rx="2"'); rect(x, y - 13, f, 16, color, 'rx="2"'); return x + w; };
 const BY = WY + WH - 132;
 {
